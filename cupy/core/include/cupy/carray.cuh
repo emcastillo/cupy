@@ -223,6 +223,55 @@ public:
     return const_cast<T&>(const_cast<const CArray&>(*this)[i]);
   }
 
+  template <typename Int>
+  __device__ ptrdiff_t access_index(const Int (&idx)[ndim]) const {
+    ptrdiff_t index = 0;
+    if (use_32bit_indexing) {
+      for (int dim = 0; dim < ndim; ++dim) {
+        int i = static_cast<int>(idx[dim]);
+        index += static_cast<int>(strides_[dim]) * i;
+      }
+    } else {
+      for (int dim = 0; dim < ndim; ++dim) {
+        index += static_cast<ptrdiff_t>(strides_[dim]) * idx[dim];
+      }
+    }
+    return index;
+  }
+
+  __device__ ptrdiff_t access_index(ptrdiff_t idx) const {
+    if (c_contiguous) {
+      // contiguous arrays can be directly addressed by the
+      // numeric value, avoiding expensive 64 bit operations in cuda
+      return idx;
+    }
+    // 64-bit mults and divs are pretty expensive and can 
+    // lead to severe perforamance degradation in computation bound
+    // kernels
+    ptrdiff_t index = 0;
+    if (use_32bit_indexing) {
+      int i = static_cast<int>(idx);
+      for (int dim = ndim; --dim > 0; ) {
+        int shape_dim = static_cast<int>(shape_[dim]);
+        index += static_cast<int>(strides_[dim]) * (i % shape_dim);
+        i /= shape_dim;
+      }
+      if (ndim > 0) {
+        index += static_cast<int>(strides_[0]) * i;
+      }
+    } else {
+      ptrdiff_t i = idx;
+      for (int dim = ndim; --dim > 0; ) {
+        index += static_cast<ptrdiff_t>(strides_[dim]) * (i % shape_[dim]);
+        i /= shape_[dim];
+      }
+      if (ndim > 0) {
+        index += static_cast<ptrdiff_t>(strides_[0]) * i;
+      }
+    }
+    return index;
+  }
+
   __device__ const T& operator[](ptrdiff_t idx) const {
     if (c_contiguous) {
       // contiguous arrays can be directly addressed by the

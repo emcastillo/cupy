@@ -232,12 +232,16 @@ cdef class _ArgInfo:
             return _get_typename(self.dtype)
         if self.arg_kind == ARG_KIND_INDEXER:
             return 'CIndexer<%d>' % self.ndim
+        if self.arg_kind == ARG_KIND_POINTER:
+            return '{}*'.format(_get_typename(self.dtype))
         assert False
 
     cdef str get_param_c_type(self, ParameterInfo p):
         # Returns the C type representation in the global function's
         # parameter list.
         cdef str ctyp = self.get_c_type()
+        if p.restrict:
+            ctyp = ctyp + ' __restrict__ '
         if p.is_const:
             return 'const ' + ctyp
         return ctyp
@@ -375,6 +379,7 @@ cdef class ParameterInfo:
         self.ctype = None
         self.raw = False
         self.is_const = is_const
+        self.restrict = False
         s = tuple([i for i in param.split() if len(i) != 0])
         if len(s) < 2:
             raise Exception('Syntax error: %s' % param)
@@ -396,6 +401,8 @@ cdef class ParameterInfo:
                 self.raw = True
             elif i == '_non_const':
                 self.is_const = False
+            elif i == 'restrict':
+                self.restrict = True
             else:
                 raise Exception('Unknown keyword "%s"' % i)
 
@@ -456,7 +463,7 @@ cdef class _TypeMap:
         return '<_TypeMap {}>'.format(self._pairs)
 
     cdef str get_typedef_code(self):
-        # Returns a code fragment of typedef statements used as preamble.
+        # Returns a code fragment of typedef statements used as preamble.S
         return ''.join([
             'typedef %s %s;\n' % (_get_typename(ctype2), ctype1)
             for ctype1, ctype2 in self._pairs])
@@ -630,10 +637,10 @@ def _get_elementwise_kernel(
     for p, arginfo in zip(params, arginfos):
         if arginfo.is_ndarray() and not p.raw:
             if p.is_const:
-                fmt = 'const {t} &{n} = _raw_{n}[_ind.get()];'
+                fmt = 'const {t} &{n} = _raw_{n}_buffer[_raw_{n}.access_index(_ind.get())];'
             else:
-                fmt = '{t} &{n} = _raw_{n}[_ind.get()];'
-            op.append(fmt.format(t=p.ctype, n=p.name))
+                fmt = '{t} &{n} = _raw_{n}_buffer[_raw_{n}.access_index(_ind.get())];'
+            op.append(fmt.format(t=p.ctype, n=p.name, ns=p.name[:-len('_buffer')]))
     op.append(operation)
     operation = '\n'.join(op)
     return _get_simple_elementwise_kernel(
@@ -713,6 +720,8 @@ cdef class ElementwiseKernel:
         self.nargs = self.nin + self.nout
         param_rest = _get_param_info('CIndexer _ind', False)
         self.params = self.in_params + self.out_params + param_rest
+        raw_pointers = []
+            
         self.operation = operation
         self.name = name
         self.reduce_dims = reduce_dims
@@ -757,7 +766,6 @@ cdef class ElementwiseKernel:
         cdef list in_args, out_args
         cdef tuple in_types, out_types, types
         cdef shape_t shape
-
         size = -1
         size = kwargs.pop('size', -1)
         stream = kwargs.pop('stream', None)
@@ -816,8 +824,23 @@ cdef class ElementwiseKernel:
             shape = _reduce_dims(inout_args, self.params, shape)
         indexer = _carray._indexer_init(shape)
         inout_args.append(indexer)
-
         arginfos = _get_arginfos(inout_args)
+        # Add the buffers for the CArrays, we will be using them directly if the arrays are not aliased
+        for param, arg in zip(self.in_params, in_args):
+            if type(arg) is ndarray:
+                inout_args.append(arg.data)
+                
+                if param.restrict:
+                    self.params = self.params +_get_param_info('restrict T {}_buffer'.format(param.name), True)
+                    param.restrict = False
+                else:
+                    self.params = self.params +_get_param_info('T {}_buffer'.format(param.name), True)
+                arginfos = arginfos + (_ArgInfo(ARG_KIND_POINTER, memory.MemoryPointer, arg.dtype, 0, True, True),)
+        for param, arg in zip(self.out_params, out_args):
+            if type(arg) is ndarray:
+                inout_args.append(arg.data)
+                self.params = self.params +_get_param_info('restrict T {}_buffer'.format(param.name), False)
+                arginfos = arginfos + (_ArgInfo(ARG_KIND_POINTER, memory.MemoryPointer, arg.dtype, 0, True, True),)
         kern = self._get_elementwise_kernel(dev_id, arginfos, type_map)
         kern.linear_launch(indexer.size, inout_args, shared_mem=0,
                            block_max_size=block_size, stream=stream)

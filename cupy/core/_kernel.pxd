@@ -14,6 +14,7 @@ cdef class ParameterInfo:
         readonly str ctype
         readonly bint raw
         readonly bint is_const
+        public bint restrict
 
 
 cdef enum _ArgKind:
