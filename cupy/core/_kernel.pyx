@@ -637,10 +637,10 @@ def _get_elementwise_kernel(
     for p, arginfo in zip(params, arginfos):
         if arginfo.is_ndarray() and not p.raw:
             if p.is_const:
-                fmt = 'const {t} &{n} = _raw_{n}_buffer[_raw_{n}.access_index(_ind.get())];'
+                fmt = 'const {t} &{n} = _raw_{n}_buffer[_raw_{n}.access_index(_ind.get())/sizeof({t})];'
             else:
-                fmt = '{t} &{n} = _raw_{n}_buffer[_raw_{n}.access_index(_ind.get())];'
-            op.append(fmt.format(t=p.ctype, n=p.name, ns=p.name[:-len('_buffer')]))
+                fmt = '{t} &{n} = _raw_{n}_buffer[_raw_{n}.access_index(_ind.get())/sizeof({t})];'
+            op.append(fmt.format(t=p.ctype, n=p.name))
     op.append(operation)
     operation = '\n'.join(op)
     return _get_simple_elementwise_kernel(
