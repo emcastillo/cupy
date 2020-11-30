@@ -184,7 +184,7 @@ html_theme = 'pydata_sphinx_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-# html_style = 'css/theme.css'
+html_style = 'css/theme.css'
 
 if on_rtd:
     html_context = {
