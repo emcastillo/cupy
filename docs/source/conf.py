@@ -184,14 +184,14 @@ html_theme = 'pydata_sphinx_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-html_style = 'css/modified_theme.css'
+# html_style = 'css/theme.css'
 
 if on_rtd:
     html_context = {
         'css_files': [
             #'https://media.readthedocs.org/css/sphinx_rtd_theme.css',
             'https://media.readthedocs.org/css/readthedocs-doc-embed.css',
-            '_static/css/modified_theme.css',
+            #'_static/css/modified_theme.css',
         ],
     }
 
