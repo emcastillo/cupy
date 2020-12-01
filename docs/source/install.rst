@@ -355,6 +355,10 @@ On CentOS 6 / 7::
   $ source /opt/rh/devtoolset-7/enable
   $ export NVCC="nvcc --compiler-bidir gcc-7"
 
+----
+
+.. currentmodule:: cupy
+
 .. toctree::
    :maxdepth: 2
 
