@@ -23,6 +23,5 @@ CuPy -- A NumPy-compatible array library accelerated by CUDA
    :maxdepth: 2
    :caption: Misc Notes
 
-   install_rocm
    upgrade
    license
