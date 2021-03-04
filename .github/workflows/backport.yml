@@ -1,0 +1,31 @@
+on:
+  pull_reuquest:
+    types: [closed]
+
+jobs:
+  pretest:
+    runs-on: ubuntu-18.04
+    env:
+      CUPY_CI: GitHub
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+
+    if: github.event.pull_request.merged == true
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: setup python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.7'
+
+    - name: setup backport
+      run: |
+        echo $PR_NUMBER
+        echo "${{ env.PR_NUMBER }}"
+        python -c 'print("OK")'
+
+    - name: run_backport
+      run: |
+        python -c 'print("done")'
