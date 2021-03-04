@@ -1,5 +1,5 @@
 on:
-  pull_reuquest:
+  pull_request:
     types: [closed]
 
 jobs:
